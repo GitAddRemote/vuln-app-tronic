@@ -1,0 +1,100 @@
+version: "3.9"
+
+networks:
+  labnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${LAB_SUBNET}
+
+volumes:
+  dvwa_db: {}
+  mutillidae_db: {}
+  bwapp_db: {}
+
+services:
+  # --- Web basics (classic PHP stacks) ---
+  dvwa:
+    image: vulnerables/web-dvwa
+    container_name: dvwa
+    profiles: ["web-basics"]
+    networks: [labnet]
+    ports: ["${DVWA_PORT}:80"]
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+
+  bwapp:
+    image: raesene/bwapp
+    container_name: bwapp
+    profiles: ["web-basics"]
+    networks: [labnet]
+    ports: ["${BWAPP_PORT}:80"]
+    restart: unless-stopped
+
+  mutillidae:
+    image: citizenstig/nowasp
+    container_name: mutillidae
+    profiles: ["web-basics"]
+    networks: [labnet]
+    ports: ["${MUTILLIDAE_PORT}:80"]
+    restart: unless-stopped
+
+  # --- Modern SPA/API targets ---
+  juice-shop:
+    image: bkimminich/juice-shop
+    container_name: juice-shop
+    profiles: ["modern-api"]
+    networks: [labnet]
+    ports: ["${JUICESHOP_PORT}:3000"]
+    restart: unless-stopped
+
+  vampi:
+    image: ensec/vampi
+    container_name: vampi
+    profiles: ["modern-api", "api-only"]
+    networks: [labnet]
+    ports: ["${VAMPI_PORT}:5000"]
+    environment:
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_DB=vampi
+    depends_on: [mongodb]
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:6
+    container_name: vampi-mongo
+    profiles: ["modern-api", "api-only"]
+    networks: [labnet]
+    restart: unless-stopped
+
+  dvws:
+    image: noelsanchez/dvws
+    container_name: dvws
+    profiles: ["api-only"]
+    networks: [labnet]
+    ports: ["${DVWS_PORT}:80"]
+    restart: unless-stopped
+
+  dvga:
+    image: dolevf/dvga
+    container_name: dvga
+    profiles: ["api-only"]
+    networks: [labnet]
+    ports: ["${DVGA_PORT}:5010"]
+    environment:
+      - JWT_SECRET=secret
+      - FLAG=flag{graph_ql_is_fun}
+      - HMAC_SECRET=secret
+    restart: unless-stopped
+
+  # --- Optional legacy/ecommerce target ---
+  hackazon:
+    image: reverseskull/hackazon
+    container_name: hackazon
+    profiles: ["extras"]
+    networks: [labnet]
+    ports: ["${HACKAZON_PORT}:80"]
+    restart: unless-stopped
+

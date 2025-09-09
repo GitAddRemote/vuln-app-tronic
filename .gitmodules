@@ -1,0 +1,6 @@
+[submodule "labs/crapi"]
+	path = labs/crapi
+	url = https://github.com/OWASP/crAPI.git
+[submodule "labs/vulhub"]
+	path = labs/vulhub
+	url = https://github.com/vulhub/vulhub.git

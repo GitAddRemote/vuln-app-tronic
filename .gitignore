@@ -1,0 +1,78 @@
+# -------------------------------------------------------------------
+# Vuln Labs .gitignore
+# -------------------------------------------------------------------
+# General
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+
+# -------------------------------------------------------------------
+# Environment / config
+# -------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# Burp Suite / ZAP configs (local use only)
+burp/
+zap/
+
+# -------------------------------------------------------------------
+# Docker
+# -------------------------------------------------------------------
+# Compose overrides / runtime
+docker-compose.override.yml
+docker-compose.override.*.yml
+
+# Docker local volumes
+data/
+volumes/
+*.pid
+
+# Docker build artifacts
+*.tar
+*.img
+*.iso
+
+# -------------------------------------------------------------------
+# Node (if any labs use JS tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# -------------------------------------------------------------------
+# Python (if you pull python-based labs or tools)
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+venv/
+ENV/
+.venv/
+
+# -------------------------------------------------------------------
+# Editors / IDEs
+# -------------------------------------------------------------------
+.vscode/
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# -------------------------------------------------------------------
+# OS trash
+# -------------------------------------------------------------------
+.trash/
+*.Trash-*
+
