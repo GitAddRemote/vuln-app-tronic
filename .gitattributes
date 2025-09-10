@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Help GitHub linguist categorize files nicely
+docker-compose.yml linguist-language=YAML
+Makefile linguist-language=Makefile
+
+# Keep shell scripts executable across platforms
+*.sh text eol=lf
+

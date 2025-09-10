@@ -1,52 +1,88 @@
 # -------------------------------------------------------------------
-# Vuln Labs .gitignore
+# Vuln Apps Tronic — .gitignore
 # -------------------------------------------------------------------
+
+##########
 # General
+##########
 .DS_Store
 Thumbs.db
 *.log
 *.tmp
+*.bak
+*.old
 *.swp
 *.swo
-*.bak
+*.pid
+*.lock
 
-# -------------------------------------------------------------------
-# Environment / config
-# -------------------------------------------------------------------
+##############
+# OS / Archives
+##############
+ehthumbs.db
+Icon?
+*.7z
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+*.bz2
+*.xz
+*.iso
+*.img
+
+#############
+# Environments
+#############
+# Keep all env files out of git except the example
 .env
 .env.*
 !.env.example
 
-# Burp Suite / ZAP configs (local use only)
-burp/
-zap/
-
-# -------------------------------------------------------------------
-# Docker
-# -------------------------------------------------------------------
-# Compose overrides / runtime
+######################
+# Docker / Compose etc
+######################
+# Local override files you might create
 docker-compose.override.yml
 docker-compose.override.*.yml
 
-# Docker local volumes
+# Local bind/volume mounts at repo root
 data/
 volumes/
-*.pid
 
-# Docker build artifacts
+# Sometimes people create ad-hoc docker dirs
+**/.docker/
+**/docker-data/
+
+# Build cache blobs (rare but safe to ignore)
 *.tar
-*.img
-*.iso
 
-# -------------------------------------------------------------------
-# Node (if any labs use JS tooling)
+################################
+# App/lab generated junk (generic)
+################################
+# NOTE: Parent .gitignore does not affect files *inside submodules*.
+# Use local excludes or .git/info/exclude within each submodule if needed.
+
+##########
+# Node.js
+##########
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+.parcel-cache/
+.next/
+.nuxt/
+dist/
+build/
+coverage/
+*.tsbuildinfo
 
-# -------------------------------------------------------------------
-# Python (if you pull python-based labs or tools)
+##########
+# Python
+##########
 __pycache__/
 *.py[cod]
 *.pyo
@@ -55,24 +91,64 @@ __pycache__/
 *.egg
 *.egg-info/
 .eggs/
-dist/
-build/
+.mypy_cache/
+.pytest_cache/
+.tox/
+.venv/
 venv/
 ENV/
-.venv/
+env/
 
-# -------------------------------------------------------------------
-# Editors / IDEs
-# -------------------------------------------------------------------
+########
+# Java
+########
+*.class
+*.jar
+*.war
+*.ear
+.target/
+target/
+.gradle/
+.gradle-cache/
+.build/
+
+#######
+# Go
+#######
+bin/
+vendor/
+*.test
+
+########
+# Ruby
+########
+.bundle/
+vendor/bundle/
+pkg/
+
+#############
+# Editors/IDEs
+#############
 .vscode/
 .idea/
 *.iml
 *.sublime-project
 *.sublime-workspace
 
-# -------------------------------------------------------------------
-# OS trash
-# -------------------------------------------------------------------
+###########
+# Security
+###########
+# Keep local tool configs out of git
+burp/
+# (Optional) track your ZAP context but ignore sessions/reports
+zap/*.session
+zap/*.session.zip
+zap/reports/
+zap/*.tmp
+
+##############
+# Misc Trash
+##############
 .trash/
 *.Trash-*
 

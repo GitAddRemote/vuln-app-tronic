@@ -1,0 +1,16 @@
+# Example external compose overrides for crAPI
+# Run with:
+#   cd labs/crapi
+#   docker compose -f docker-compose.yml -f ../../overrides/crapi.override.yml --env-file ../../overrides/crapi.env up -d
+
+services:
+  identity:
+    environment:
+      - LOG_LEVEL=${CRAPI_LOG_LEVEL}
+  community:
+    environment:
+      - LOG_LEVEL=${CRAPI_LOG_LEVEL}
+  notifier:
+    environment:
+      - LOG_LEVEL=${CRAPI_LOG_LEVEL}
+

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<context>
+  <name>vuln-labs</name>
+  <desc>Local vulnerable labs on localhost ports</desc>
+  <urls>
+    <url>http://localhost:8080</url>
+    <url>http://localhost:8081</url>
+    <url>http://localhost:8082</url>
+    <url>http://localhost:3000</url>
+    <url>http://localhost:5000</url>
+    <url>http://localhost:8888</url>
+    <url>http://localhost:5010</url>
+    <url>http://localhost:8083</url>
+  </urls>
+  <inclusions>
+    <inclusion>http://localhost:8080.*</inclusion>
+    <inclusion>http://localhost:8081.*</inclusion>
+    <inclusion>http://localhost:8082.*</inclusion>
+    <inclusion>http://localhost:3000.*</inclusion>
+    <inclusion>http://localhost:5000.*</inclusion>
+    <inclusion>http://localhost:8888.*</inclusion>
+    <inclusion>http://localhost:5010.*</inclusion>
+    <inclusion>http://localhost:8083.*</inclusion>
+  </inclusions>
+  <exclusions/>
+  <authentication>
+    <method type="manual"/>
+    <verification type="poll"/>
+  </authentication>
+  <users/>
+  <technology>
+    <include>all</include>
+  </technology>
+  <sessionProperties/>
+</context>
+

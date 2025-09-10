@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-read -rp "This will remove ALL volumes for this project. Continue? [y/N] " yn
-[[ "${yn}" =~ ^[Yy]$ ]] || exit 1
+
+echo "⚠️  This will stop containers and REMOVE ALL DOCKER VOLUMES for this project."
+read -rp "Proceed? [y/N] " yn
+if [[ ! "${yn:-N}" =~ ^[Yy]$ ]]; then
+  echo "Aborted."
+  exit 1
+fi
+
 docker compose down -v
-echo "Done."
+echo "✅ Volumes removed."
 
