@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  sanity:
+  web_and_modern_api:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (with submodules)
@@ -15,11 +15,96 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Show Docker & Compose versions
+      - name: Docker versions
         run: |
           docker --version
           docker compose version
 
-      - name: Validate docker-compose config
+      - name: Validate compose
         run: docker compose config
+
+      - name: Pull images
+        run: docker compose --profile web-basics --profile modern-api pull
+
+      - name: Start services
+        run: docker compose --profile web-basics --profile modern-api up -d
+
+      - name: Wait for health
+        run: |
+          set -euo pipefail
+          services="dvwa bwapp mutillidae juice-shop mongodb vampi"
+          for s in $services; do
+            echo "Waiting for $s to be healthy..."
+            timeout 180s bash -ceu '
+              while true; do
+                status=$(docker inspect --format="{{json .State.Health}}" '"$s"' 2>/dev/null || echo "null")
+                if [ "$status" = "null" ]; then exit 0; fi
+                health=$(echo "$status" | sed -nE "s/.*\"Status\":\"([^\"]+)\".*/\1/p")
+                if [ "$health" = "healthy" ]; then exit 0; fi
+                sleep 3
+              done'
+          done
+          echo "All healthy."
+
+      - name: Smoke tests
+        run: |
+          set -euo pipefail
+          curl -I --silent http://localhost:8080/ | head -n1
+          curl -I --silent http://localhost:8081/ | head -n1
+          curl -I --silent http://localhost:8082/ | head -n1
+          curl -I --silent http://localhost:3000/ | head -n1
+          curl -I --silent http://localhost:5000/ | head -n1 || true
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-log-prefix
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  api_only:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Validate compose
+        run: docker compose config
+
+      - name: Pull images
+        run: docker compose --profile api-only pull
+
+      - name: Start services
+        run: docker compose --profile api-only up -d
+
+      - name: Wait for health
+        run: |
+          set -euo pipefail
+          services="dvws dvga"
+          for s in $services; do
+            echo "Waiting for $s to be healthy..."
+            timeout 180s bash -ceu '
+              while true; do
+                status=$(docker inspect --format="{{json .State.Health}}" '"$s"' 2>/dev/null || echo "null")
+                if [ "$status" = "null" ]; then exit 0; fi
+                health=$(echo "$status" | sed -nE "s/.*\"Status\":\"([^\"]+)\".*/\1/p")
+                if [ "$health" = "healthy" ]; then exit 0; fi
+                sleep 3
+              done'
+          done
+          echo "All healthy."
+
+      - name: Smoke tests
+        run: |
+          set -euo pipefail
+          curl -I --silent http://localhost:8888/ | head -n1 || true
+          curl -I --silent http://localhost:5010/graphiql | head -n1 || true
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
 
