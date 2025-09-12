@@ -1,149 +1,230 @@
-# docker-compose.yml (Compose v2: no version key)
+name: CI
 
-networks:
-  labnet:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: ${LAB_SUBNET:-172.30.0.0/16}
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+  schedule:
+    - cron: "0 7 * * *"   # nightly full run (includes DVWS required)
 
-services:
-  # --- Web basics (classic PHP stacks) ---
-  dvwa:
-    image: vulnerables/web-dvwa
-    container_name: dvwa
-    profiles: ["web-basics"]
-    networks: [labnet]
-    ports: ["127.0.0.1:${DVWA_PORT}:80"]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost/"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
-  bwapp:
-    image: raesene/bwapp
-    container_name: bwapp
-    profiles: ["web-basics"]
-    networks: [labnet]
-    ports: ["127.0.0.1:${BWAPP_PORT}:80"]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost/portal.php"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+jobs:
+  web_and_modern_api:
+    runs-on: ubuntu-latest
+    env:
+      LAB_SUBNET: ${{ vars.LAB_SUBNET || '172.30.0.0/16' }}
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
 
-  mutillidae:
-    image: citizenstig/nowasp
-    container_name: mutillidae
-    profiles: ["web-basics"]
-    networks: [labnet]
-    ports: ["127.0.0.1:${MUTILLIDAE_PORT}:80"]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost/"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+      - name: Docker versions
+        run: |
+          docker --version
+          docker compose version
 
-  # --- Modern SPA/API targets ---
-  juice-shop:
-    image: bkimminich/juice-shop
-    container_name: juice-shop
-    profiles: ["modern-api"]
-    networks: [labnet]
-    ports: ["127.0.0.1:${JUICESHOP_PORT}:3000"]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:3000/"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+      - name: Prepare env
+        run: cp .env.example .env || true
 
-  mongodb:
-    image: mongo:6
-    container_name: vampi-mongo
-    profiles: ["modern-api", "api-only"]
-    networks: [labnet]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+      - name: Validate compose
+        run: docker compose config
 
-  vampi:
-    image: erev0s/vampi
-    container_name: vampi
-    profiles: ["modern-api", "api-only"]
-    networks: [labnet]
-    ports: ["127.0.0.1:${VAMPI_PORT}:5000"]
-    environment:
-      - MONGO_HOST=mongodb
-      - MONGO_PORT=27017
-      - MONGO_DB=vampi
-    depends_on:
-      - mongodb
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:5000/"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+      - name: Pull images
+        run: docker compose --profile web-basics --profile modern-api pull
 
-  # --- API-only extras ---
-  dvws:
-    build: ./labs/dvws-node
-    container_name: dvws
-    profiles: ["api-only"]
-    networks: [labnet]
-    ports: ["127.0.0.1:${DVWS_PORT}:80"]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost/"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+      - name: Start services
+        run: docker compose --profile web-basics --profile modern-api up -d
 
-  dvga:
-    image: dolevf/dvga
-    container_name: dvga
-    profiles: ["api-only"]
-    networks: [labnet]
-    ports: ["127.0.0.1:${DVGA_PORT}:5010"]
-    environment:
-      - JWT_SECRET=secret
-      - HMAC_SECRET=secret
-      - FLAG=flag{graph_ql_is_fun}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:5010/graphiql"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+      - name: Wait for endpoints (web + modern)
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            "http://localhost:${DVWA_PORT:-8080}"
+            "http://localhost:${BWAPP_PORT:-8081}"
+            "http://localhost:${MUTILLIDAE_PORT:-8082}"
+            "http://localhost:${JUICESHOP_PORT:-3000}"
+            "http://localhost:${VAMPI_PORT:-5000}"
+          )
+          for url in "${urls[@]}"; do
+            echo "Waiting for $url..."
+            for i in {1..90}; do
+              code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
+              if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
+                echo "OK $url ($code)"; break
+              fi
+              sleep 3
+              if [[ $i -eq 90 ]]; then echo "Timeout $url (last=$code)"; exit 1; fi
+            done
+          done
 
-  # --- Optional legacy/ecommerce target ---
-  hackazon:
-    image: pierrickv/hackazon
-    container_name: hackazon
-    profiles: ["extras"]
-    networks: [labnet]
-    ports: ["127.0.0.1:${HACKAZON_PORT}:80"]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost/"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
+      - name: Smoke tests
+        run: |
+          set -euo pipefail
+          curl -sI http://localhost:${DVWA_PORT:-8080}/ | head -n1
+          curl -sI http://localhost:${BWAPP_PORT:-8081}/ | head -n1
+          curl -sI http://localhost:${MUTILLIDAE_PORT:-8082}/ | head -n1
+          curl -sI http://localhost:${JUICESHOP_PORT:-3000}/ | head -n1
+          curl -sI http://localhost:${VAMPI_PORT:-5000}/ | head -n1 || true
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-log-prefix
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  api_quick:
+    name: api_only (quick)
+    runs-on: ubuntu-latest
+    env:
+      LAB_SUBNET: ${{ vars.LAB_SUBNET || '172.30.0.0/16' }}
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Prepare env
+        run: cp .env.example .env || true
+
+      - name: Validate compose
+        run: docker compose config
+
+      - name: Pull images
+        run: docker compose --profile api-only pull
+
+      - name: Start services (DVGA only)
+        run: docker compose --profile api-only up -d dvga
+
+      - name: Resolve runtime port (DVGA)
+        id: ports_quick
+        shell: bash
+        run: |
+          set -euo pipefail
+          # DVGA exposes 5010 in the container; discover host port
+          hp=$(docker compose port dvga 5010 | awk -F: 'NR==1{print $2}')
+          echo "DVGA_HOSTPORT=${hp:-${DVGA_PORT:-5010}}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for DVGA
+        shell: bash
+        run: |
+          set -euo pipefail
+          port="${{ steps.ports_quick.outputs.DVGA_HOSTPORT }}"
+          url="http://localhost:${port}/graphiql"
+          echo "Waiting for DVGA @ ${url} ..."
+          for i in {1..120}; do
+            code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
+            if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
+              echo "OK DVGA ($code)"; exit 0
+            fi
+            sleep 3
+          done
+          echo "ERROR: DVGA not ready after wait. Last code=$code"
+          echo "---- dvga logs (last 200) ----"; docker compose logs --tail=200 dvga || true
+          echo "---- dvga ps ----"; docker compose ps dvga || true
+          exit 1
+
+      - name: Smoke tests
+        run: |
+          set -euo pipefail
+          curl -sI "http://localhost:${{ steps.ports_quick.outputs.DVGA_HOSTPORT }}/graphiql" | head -n1 || true
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-log-prefix
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  api_full_dvws:
+    name: api_only (full DVWS)
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    env:
+      LAB_SUBNET: ${{ vars.LAB_SUBNET || '172.30.0.0/16' }}
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Prepare env
+        run: cp .env.example .env || true
+
+      - name: Validate compose
+        run: docker compose config
+
+      - name: Pull images
+        run: docker compose --profile api-only pull
+
+      - name: Start services (DVWS + DVGA)
+        run: docker compose --profile api-only up -d dvws dvga
+
+      - name: Resolve runtime ports (DVWS + DVGA)
+        id: ports_full
+        shell: bash
+        run: |
+          set -euo pipefail
+          dvga_hp=$(docker compose port dvga 5010 | awk -F: 'NR==1{print $2}')
+          dvws_hp=$(docker compose port dvws 8888 | awk -F: 'NR==1{print $2}')
+          echo "DVGA_HOSTPORT=${dvga_hp:-${DVGA_PORT:-5010}}" >> "$GITHUB_OUTPUT"
+          echo "DVWS_HOSTPORT=${dvws_hp:-${DVWS_PORT:-8888}}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for DVWS + DVGA
+        shell: bash
+        run: |
+          set -euo pipefail
+          dvga="http://localhost:${{ steps.ports_full.outputs.DVGA_HOSTPORT }}/graphiql"
+          dvws="http://localhost:${{ steps.ports_full.outputs.DVWS_HOSTPORT }}/"
+          for url in "$dvws" "$dvga"; do
+            echo "Waiting for $url..."
+            for i in {1..180}; do
+              code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
+              if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
+                echo "OK $url ($code)"; break
+              fi
+              sleep 3
+              if [[ $i -eq 180 ]]; then
+                echo "Timeout $url (last=$code)"
+                if [[ "$url" == "$dvws" ]]; then
+                  echo "---- dvws logs (last 200) ----"; docker compose logs --tail=200 dvws || true
+                  echo "---- dvws ps ----"; docker compose ps dvws || true
+                else
+                  echo "---- dvga logs (last 200) ----"; docker compose logs --tail=200 dvga || true
+                  echo "---- dvga ps ----"; docker compose ps dvga || true
+                fi
+                exit 1
+              fi
+            done
+          done
+
+      - name: Smoke tests
+        run: |
+          set -euo pipefail
+          curl -sI "http://localhost:${{ steps.ports_full.outputs.DVWS_HOSTPORT }}/" | head -n1
+          curl -sI "http://localhost:${{ steps.ports_full.outputs.DVGA_HOSTPORT }}/graphiql" | head -n1
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-log-prefix
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
 
