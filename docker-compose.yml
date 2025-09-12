@@ -101,7 +101,7 @@ services:
 
   # --- API-only extras ---
   dvws:
-    image: snoopysecurity/dvws
+    build: ./labs/dvws-node
     container_name: dvws
     profiles: ["api-only"]
     networks: [labnet]
@@ -134,7 +134,7 @@ services:
 
   # --- Optional legacy/ecommerce target ---
   hackazon:
-    image: reverseskull/hackazon
+    image: pierrickv/hackazon
     container_name: hackazon
     profiles: ["extras"]
     networks: [labnet]

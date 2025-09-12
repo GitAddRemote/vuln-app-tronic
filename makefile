@@ -1,6 +1,14 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
+.PHONY: \
+  help bootstrap \
+  up up-ready up-all api api-ready down ps logs clean wait check \
+  build build-all api-build \
+  restart restart-all api-restart \
+  crapi crapi-down \
+  vulhub vulhub-down vulhub-list
+
 bootstrap:
 	@if [ ! -d "labs/crapi/.git" ] || [ ! -d "labs/vulhub/.git" ]; then \
 		echo "→ Initializing submodules..."; \
@@ -18,6 +26,12 @@ help:
 	@echo "  make down             # stop containers"
 	@echo "  make ps               # list containers"
 	@echo "  make logs             # tail logs"
+	@echo "  make build            # docker compose build (all services)"
+	@echo "  make build-all        # alias for build"
+	@echo "  make api-build        # build only API-focused services (best-effort)"
+	@echo "  make restart          # down -> up (default profiles)"
+	@echo "  make restart-all      # down -> up-all"
+	@echo "  make api-restart      # down -> api"
 	@echo "  make check            # curl-based smoke checks"
 	@echo "  make clean            # stop + remove volumes (DANGEROUS)"
 	@echo "  make crapi            # run crAPI via its own compose (labs/crapi)"
@@ -25,6 +39,8 @@ help:
 	@echo "  make vulhub SCENARIO=product/CVE-XXXX-YYYY"
 	@echo "  make vulhub-down SCENARIO=product/CVE-XXXX-YYYY"
 	@echo "  make vulhub-list      # list top-level vulhub products"
+
+# ----- Core lifecycle -----
 
 up: bootstrap
 	docker compose --profile web-basics --profile modern-api up -d
@@ -49,6 +65,29 @@ logs:
 
 clean:
 	./scripts/wipe-volumes.sh
+
+# ----- Build & Restart -----
+
+# Build all images defined in compose (profiles only affect 'up', not 'build')
+build:
+	docker compose build
+
+build-all: build
+
+# Best-effort targeted build for API-only profile (ignores non-existent names)
+# Adjust the service list if you want to be explicit.
+api-build:
+	- docker compose build dvws dvga || true
+	# Fallback to a full build if targeted fails to match anything:
+	@if ! docker compose config --services | grep -Eq '^(dvws|dvga)$$'; then \
+		echo "No explicit API services matched; running full build..."; \
+		docker compose build; \
+	fi
+
+# Restart flows
+restart: down up
+restart-all: down up-all
+api-restart: down api
 
 # ----- Health & Smoke -----
 

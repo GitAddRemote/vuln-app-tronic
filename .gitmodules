@@ -6,3 +6,6 @@
 	path = labs/crapi
 	url = https://github.com/OWASP/crAPI.git
 	ignore = untracked
+[submodule "labs/dvws-node"]
+	path = labs/dvws-node
+	url = https://github.com/snoopysecurity/dvws-node.git
