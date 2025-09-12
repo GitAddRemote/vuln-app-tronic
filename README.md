@@ -218,7 +218,6 @@ MIT License © 2025 \[Your Name or Org]
 * [ ] Automation demos (SQLi, XSS, fuzzing playbooks)
 * [ ] Telemetry toggle for optional request logging/metrics
 
-📎 Footer
 
 📎 Footer
 
