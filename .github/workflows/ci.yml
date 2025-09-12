@@ -8,6 +8,9 @@ on:
 jobs:
   web_and_modern_api:
     runs-on: ubuntu-latest
+    env:
+      # Use repo-level variable if set; otherwise fall back
+      LAB_SUBNET: ${{ vars.LAB_SUBNET || '172.30.0.0/16' }}
     steps:
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
@@ -20,6 +23,10 @@ jobs:
           docker --version
           docker compose version
 
+      - name: Prepare env
+        run: |
+          cp .env.example .env || true
+
       - name: Validate compose
         run: docker compose config
 
@@ -29,31 +36,37 @@ jobs:
       - name: Start services
         run: docker compose --profile web-basics --profile modern-api up -d
 
-      - name: Wait for health
+      - name: Wait for endpoints (web + modern)
+        shell: bash
         run: |
           set -euo pipefail
-          services="dvwa bwapp mutillidae juice-shop mongodb vampi"
-          for s in $services; do
-            echo "Waiting for $s to be healthy..."
-            timeout 180s bash -ceu '
-              while true; do
-                status=$(docker inspect --format="{{json .State.Health}}" '"$s"' 2>/dev/null || echo "null")
-                if [ "$status" = "null" ]; then exit 0; fi
-                health=$(echo "$status" | sed -nE "s/.*\"Status\":\"([^\"]+)\".*/\1/p")
-                if [ "$health" = "healthy" ]; then exit 0; fi
-                sleep 3
-              done'
+          urls=(
+            "http://localhost:${DVWA_PORT:-8080}"
+            "http://localhost:${BWAPP_PORT:-8081}"
+            "http://localhost:${MUTILLIDAE_PORT:-8082}"
+            "http://localhost:${JUICESHOP_PORT:-3000}"
+            "http://localhost:${VAMPI_PORT:-5000}"
+          )
+          for url in "${urls[@]}"; do
+            echo "Waiting for $url..."
+            for i in {1..60}; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)
+              if [[ "$code" == "200" || "$code" == "302" ]]; then
+                echo "OK $url ($code)"; break
+              fi
+              sleep 3
+              if [[ $i -eq 60 ]]; then echo "Timeout $url (last=$code)"; exit 1; fi
+            done
           done
-          echo "All healthy."
 
       - name: Smoke tests
         run: |
           set -euo pipefail
-          curl -I --silent http://localhost:8080/ | head -n1
-          curl -I --silent http://localhost:8081/ | head -n1
-          curl -I --silent http://localhost:8082/ | head -n1
-          curl -I --silent http://localhost:3000/ | head -n1
-          curl -I --silent http://localhost:5000/ | head -n1 || true
+          curl -sI http://localhost:${DVWA_PORT:-8080}/ | head -n1
+          curl -sI http://localhost:${BWAPP_PORT:-8081}/ | head -n1
+          curl -sI http://localhost:${MUTILLIDAE_PORT:-8082}/ | head -n1
+          curl -sI http://localhost:${JUICESHOP_PORT:-3000}/ | head -n1
+          curl -sI http://localhost:${VAMPI_PORT:-5000}/ | head -n1 || true
 
       - name: Logs on failure
         if: failure()
@@ -65,12 +78,18 @@ jobs:
 
   api_only:
     runs-on: ubuntu-latest
+    env:
+      LAB_SUBNET: ${{ vars.LAB_SUBNET || '172.30.0.0/16' }}
     steps:
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
           submodules: true
           fetch-depth: 0
+
+      - name: Prepare env
+        run: |
+          cp .env.example .env || true
 
       - name: Validate compose
         run: docker compose config
@@ -81,28 +100,35 @@ jobs:
       - name: Start services
         run: docker compose --profile api-only up -d
 
-      - name: Wait for health
+      - name: Wait for endpoints (api-only)
+        shell: bash
         run: |
           set -euo pipefail
-          services="dvws dvga"
-          for s in $services; do
-            echo "Waiting for $s to be healthy..."
-            timeout 180s bash -ceu '
-              while true; do
-                status=$(docker inspect --format="{{json .State.Health}}" '"$s"' 2>/dev/null || echo "null")
-                if [ "$status" = "null" ]; then exit 0; fi
-                health=$(echo "$status" | sed -nE "s/.*\"Status\":\"([^\"]+)\".*/\1/p")
-                if [ "$health" = "healthy" ]; then exit 0; fi
-                sleep 3
-              done'
+          urls=(
+            "http://localhost:${DVWS_PORT:-8888}"
+            "http://localhost:${DVGA_PORT:-5010}/graphiql"
+          )
+          for url in "${urls[@]}"; do
+            echo "Waiting for $url..."
+            for i in {1..60}; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)
+              if [[ "$code" == "200" || "$code" == "302" ]]; then
+                echo "OK $url ($code)"; break
+              fi
+              sleep 3
+              if [[ $i -eq 60 ]]; then echo "Timeout $url (last=$code)"; exit 1; fi
+            done
           done
-          echo "All healthy."
 
       - name: Smoke tests
         run: |
           set -euo pipefail
-          curl -I --silent http://localhost:8888/ | head -n1 || true
-          curl -I --silent http://localhost:5010/graphiql | head -n1 || true
+          curl -sI http://localhost:${DVWS_PORT:-8888}/ | head -n1 || true
+          curl -sI http://localhost:${DVGA_PORT:-5010}/graphiql | head -n1 || true
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-log-prefix
 
       - name: Tear down
         if: always()
