@@ -2,14 +2,20 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "**" ]
   pull_request:
+  schedule:
+    # Nightly full run (includes DVWS required)
+    - cron: "0 7 * * *"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   web_and_modern_api:
     runs-on: ubuntu-latest
     env:
-      # Use repo-level variable if set; otherwise fall back
       LAB_SUBNET: ${{ vars.LAB_SUBNET || '172.30.0.0/16' }}
     steps:
       - name: Checkout (with submodules)
@@ -24,8 +30,7 @@ jobs:
           docker compose version
 
       - name: Prepare env
-        run: |
-          cp .env.example .env || true
+        run: cp .env.example .env || true
 
       - name: Validate compose
         run: docker compose config
@@ -49,13 +54,13 @@ jobs:
           )
           for url in "${urls[@]}"; do
             echo "Waiting for $url..."
-            for i in {1..60}; do
-              code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)
-              if [[ "$code" == "200" || "$code" == "302" ]]; then
+            for i in {1..90}; do
+              code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
+              if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
                 echo "OK $url ($code)"; break
               fi
               sleep 3
-              if [[ $i -eq 60 ]]; then echo "Timeout $url (last=$code)"; exit 1; fi
+              if [[ $i -eq 90 ]]; then echo "Timeout $url (last=$code)"; exit 1; fi
             done
           done
 
@@ -76,7 +81,8 @@ jobs:
         if: always()
         run: docker compose down -v
 
-  api_only:
+  api_quick:
+    name: api_only (quick)
     runs-on: ubuntu-latest
     env:
       LAB_SUBNET: ${{ vars.LAB_SUBNET || '172.30.0.0/16' }}
@@ -88,8 +94,7 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare env
-        run: |
-          cp .env.example .env || true
+        run: cp .env.example .env || true
 
       - name: Validate compose
         run: docker compose config
@@ -100,31 +105,99 @@ jobs:
       - name: Start services
         run: docker compose --profile api-only up -d
 
-      - name: Wait for endpoints (api-only)
+      - name: Wait for endpoints (DVGA required, DVWS optional)
         shell: bash
         run: |
           set -euo pipefail
-          urls=(
-            "http://localhost:${DVWS_PORT:-8888}"
-            "http://localhost:${DVGA_PORT:-5010}/graphiql"
-          )
+          required=("http://localhost:${DVGA_PORT:-5010}/graphiql")
+          optional=("http://localhost:${DVWS_PORT:-8888}")
+
+          wait_url () {
+            local url="$1" label="$2" tries="${3:-120}"
+            echo "Waiting for $label @ $url..."
+            for i in $(seq 1 "$tries"); do
+              code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
+              if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
+                echo "OK $label ($code)"; return 0
+              fi
+              sleep 3
+            done
+            return 1
+          }
+
+          for u in "${required[@]}"; do
+            wait_url "$u" "required" 120 || { echo "ERROR: required endpoint not ready: $u"; exit 1; }
+          done
+
+          for u in "${optional[@]}"; do
+            if ! wait_url "$u" "optional(DVWS)" 150; then
+              echo "WARN: optional endpoint not ready: $u"
+              docker compose logs --tail=200 dvws || true
+              docker compose ps dvws || true
+            fi
+          done
+
+      - name: Smoke tests
+        run: |
+          set -euo pipefail
+          curl -sI http://localhost:${DVGA_PORT:-5010}/graphiql | head -n1 || true
+          curl -sI http://localhost:${DVWS_PORT:-8888}/ | head -n1 || true
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-log-prefix
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  api_full_dvws:
+    name: api_only (full DVWS)
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    env:
+      LAB_SUBNET: ${{ vars.LAB_SUBNET || '172.30.0.0/16' }}
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Prepare env
+        run: cp .env.example .env || true
+
+      - name: Validate compose
+        run: docker compose config
+
+      - name: Pull images
+        run: docker compose --profile api-only pull
+
+      - name: Start services
+        run: docker compose --profile api-only up -d
+
+      - name: Wait for endpoints (DVWS required)
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=("http://localhost:${DVWS_PORT:-8888}" "http://localhost:${DVGA_PORT:-5010}/graphiql")
           for url in "${urls[@]}"; do
             echo "Waiting for $url..."
-            for i in {1..60}; do
-              code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)
-              if [[ "$code" == "200" || "$code" == "302" ]]; then
+            for i in {1..180}; do   # up to 9 minutes (PRs use quick job instead)
+              code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
+              if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
                 echo "OK $url ($code)"; break
               fi
               sleep 3
-              if [[ $i -eq 60 ]]; then echo "Timeout $url (last=$code)"; exit 1; fi
+              if [[ $i -eq 180 ]]; then echo "Timeout $url (last=$code)"; exit 1; fi
             done
           done
 
       - name: Smoke tests
         run: |
           set -euo pipefail
-          curl -sI http://localhost:${DVWS_PORT:-8888}/ | head -n1 || true
-          curl -sI http://localhost:${DVGA_PORT:-5010}/graphiql | head -n1 || true
+          curl -sI http://localhost:${DVWS_PORT:-8888}/ | head -n1
+          curl -sI http://localhost:${DVGA_PORT:-5010}/graphiql | head -n1
 
       - name: Logs on failure
         if: failure()
