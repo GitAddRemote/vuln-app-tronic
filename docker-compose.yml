@@ -5,7 +5,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: ${LAB_SUBNET}
+        - subnet: ${LAB_SUBNET:-172.30.0.0/16}
 
 services:
   # --- Web basics (classic PHP stacks) ---
