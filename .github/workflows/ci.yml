@@ -75,7 +75,9 @@ jobs:
 
       - name: Logs on failure
         if: failure()
-        run: docker compose logs --no-log-prefix
+        run: |
+          docker compose ps
+          docker compose logs --no-log-prefix
 
       - name: Tear down
         if: always()
@@ -102,50 +104,48 @@ jobs:
       - name: Pull images
         run: docker compose --profile api-only pull
 
-      - name: Start services
-        run: docker compose --profile api-only up -d
+      - name: Start services (DVGA only)
+        # Start only DVGA to keep PRs quick
+        run: docker compose --profile api-only up -d dvga
 
-      - name: Wait for endpoints (DVGA required, DVWS optional)
+      - name: Resolve runtime port (DVGA)
+        id: ports_quick
         shell: bash
         run: |
           set -euo pipefail
-          required=("http://localhost:${DVGA_PORT:-5010}/graphiql")
-          optional=("http://localhost:${DVWS_PORT:-8888}")
+          # DVGA container listens on 5000; discover host port
+          hp=$(docker compose port dvga 5000 | awk -F: 'NR==1{print $2}')
+          echo "DVGA_HOSTPORT=${hp:-${DVGA_PORT:-5010}}" >> "$GITHUB_OUTPUT"
 
-          wait_url () {
-            local url="$1" label="$2" tries="${3:-120}"
-            echo "Waiting for $label @ $url..."
-            for i in $(seq 1 "$tries"); do
-              code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
-              if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
-                echo "OK $label ($code)"; return 0
-              fi
-              sleep 3
-            done
-            return 1
-          }
-
-          for u in "${required[@]}"; do
-            wait_url "$u" "required" 120 || { echo "ERROR: required endpoint not ready: $u"; exit 1; }
-          done
-
-          for u in "${optional[@]}"; do
-            if ! wait_url "$u" "optional(DVWS)" 150; then
-              echo "WARN: optional endpoint not ready: $u"
-              docker compose logs --tail=200 dvws || true
-              docker compose ps dvws || true
+      - name: Wait for DVGA
+        shell: bash
+        run: |
+          set -euo pipefail
+          port="${{ steps.ports_quick.outputs.DVGA_HOSTPORT }}"
+          url="http://localhost:${port}/graphiql"
+          echo "Waiting for DVGA @ ${url} ..."
+          for i in {1..120}; do
+            code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
+            if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
+              echo "OK DVGA ($code)"; exit 0
             fi
+            sleep 3
           done
+          echo "ERROR: DVGA not ready after wait. Last code=$code"
+          echo "---- dvga logs (last 200) ----"; docker compose logs --tail=200 dvga || true
+          echo "---- dvga ps ----"; docker compose ps dvga || true
+          exit 1
 
       - name: Smoke tests
         run: |
           set -euo pipefail
-          curl -sI http://localhost:${DVGA_PORT:-5010}/graphiql | head -n1 || true
-          curl -sI http://localhost:${DVWS_PORT:-8888}/ | head -n1 || true
+          curl -sI "http://localhost:${{ steps.ports_quick.outputs.DVGA_HOSTPORT }}/graphiql" | head -n1 || true
 
       - name: Logs on failure
         if: failure()
-        run: docker compose logs --no-log-prefix
+        run: |
+          docker compose ps
+          docker compose logs --no-log-prefix
 
       - name: Tear down
         if: always()
@@ -173,35 +173,59 @@ jobs:
       - name: Pull images
         run: docker compose --profile api-only pull
 
-      - name: Start services
-        run: docker compose --profile api-only up -d
+      - name: Start services (DVWS + DVGA)
+        run: docker compose --profile api-only up -d dvws dvga
 
-      - name: Wait for endpoints (DVWS required)
+      - name: Resolve runtime ports (DVWS + DVGA)
+        id: ports_full
         shell: bash
         run: |
           set -euo pipefail
-          urls=("http://localhost:${DVWS_PORT:-8888}" "http://localhost:${DVGA_PORT:-5010}/graphiql")
-          for url in "${urls[@]}"; do
+          dvga_hp=$(docker compose port dvga 5000 | awk -F: 'NR==1{print $2}')
+          # DVWS usually exposes 8888; still detect the actual published port
+          dvws_hp=$(docker compose port dvws 8888 | awk -F: 'NR==1{print $2}')
+          echo "DVGA_HOSTPORT=${dvga_hp:-${DVGA_PORT:-5010}}" >> "$GITHUB_OUTPUT"
+          echo "DVWS_HOSTPORT=${dvws_hp:-${DVWS_PORT:-8888}}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for DVWS + DVGA
+        shell: bash
+        run: |
+          set -euo pipefail
+          dvga="http://localhost:${{ steps.ports_full.outputs.DVGA_HOSTPORT }}/graphiql"
+          dvws="http://localhost:${{ steps.ports_full.outputs.DVWS_HOSTPORT }}/"
+          for url in "$dvws" "$dvga"; do
             echo "Waiting for $url..."
-            for i in {1..180}; do   # up to 9 minutes (PRs use quick job instead)
+            for i in {1..180}; do
               code=$(curl --connect-timeout 2 -s -o /dev/null -w "%{http_code}" "$url" || true)
               if [[ "$code" =~ ^(200|301|302|401|403)$ ]]; then
                 echo "OK $url ($code)"; break
               fi
               sleep 3
-              if [[ $i -eq 180 ]]; then echo "Timeout $url (last=$code)"; exit 1; fi
+              if [[ $i -eq 180 ]]; then
+                echo "Timeout $url (last=$code)"
+                if [[ "$url" == "$dvws" ]]; then
+                  echo "---- dvws logs (last 200) ----"; docker compose logs --tail=200 dvws || true
+                  echo "---- dvws ps ----"; docker compose ps dvws || true
+                else
+                  echo "---- dvga logs (last 200) ----"; docker compose logs --tail=200 dvga || true
+                  echo "---- dvga ps ----"; docker compose ps dvga || true
+                fi
+                exit 1
+              fi
             done
           done
 
       - name: Smoke tests
         run: |
           set -euo pipefail
-          curl -sI http://localhost:${DVWS_PORT:-8888}/ | head -n1
-          curl -sI http://localhost:${DVGA_PORT:-5010}/graphiql | head -n1
+          curl -sI "http://localhost:${{ steps.ports_full.outputs.DVWS_HOSTPORT }}/" | head -n1
+          curl -sI "http://localhost:${{ steps.ports_full.outputs.DVGA_HOSTPORT }}/graphiql" | head -n1
 
       - name: Logs on failure
         if: failure()
-        run: docker compose logs --no-log-prefix
+        run: |
+          docker compose ps
+          docker compose logs --no-log-prefix
 
       - name: Tear down
         if: always()
