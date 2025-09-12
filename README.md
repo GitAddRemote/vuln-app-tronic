@@ -23,7 +23,7 @@ Built as a personal hacking playground for **bug bounty hunters, penetration tes
 ```bash
 # Clone with submodules (crAPI + Vulhub)
 git clone <this-repo>
-cd vuln-apps-tronic
+cd vuln-tronic-labs
 git submodule update --init --recursive
 
 # Copy example env
@@ -85,6 +85,7 @@ make down        # Stop all containers
 make ps          # List running containers
 make logs        # Tail logs
 make clean       # Stop & remove volumes (DANGEROUS)
+make check       # Run smoke tests (HTTP HEAD)
 
 # Heavy labs
 make crapi       # Start crAPI (from labs/crapi)
@@ -115,6 +116,15 @@ cd ../../
 git add labs/crapi
 git commit -m "Bump crAPI submodule to vX.Y.Z"
 ```
+
+### Adding DVWS submodule (required)
+
+```bash
+git submodule add --depth 1 https://github.com/snoopysecurity/dvws-node.git labs/dvws-node
+git submodule update --init --recursive
+```
+
+*(This is necessary since there is no official DVWS image.)*
 
 ---
 
@@ -182,22 +192,34 @@ MIT License © 2025 \[Your Name or Org]
 
 ## 📚 Suggested Learning Roadmap
 
-1. **DVWA / Mutillidae / bWAPP** → Build a foundation in OWASP Top 10 basics (XSS, SQLi, CSRF, file upload).  
-2. **Juice Shop** → Move into a modern SPA + REST API target, practice intercepting JSON API traffic.  
-3. **DVWS / DVGA** → Explore API-specific attack surfaces (REST and GraphQL), including endpoint fuzzing and schema abuse.  
-4. **Hackazon** → Work on business logic flaws and end-to-end e-commerce exploitation scenarios.  
-5. **crAPI** → Dive into realistic microservices and token-based authz/authn issues, practice chaining vulnerabilities across services.  
-6. **Vulhub** → Learn how to identify software versions, research CVEs, and reproduce real-world exploits for deeper pentest training.  
+1. **DVWA / Mutillidae / bWAPP** → Build a foundation in OWASP Top 10 basics (XSS, SQLi, CSRF, file upload).
+2. **Juice Shop** → Move into a modern SPA + REST API target, practice intercepting JSON API traffic.
+3. **DVWS / DVGA** → Explore API-specific attack surfaces (REST and GraphQL), including endpoint fuzzing and schema abuse.
+4. **Hackazon** → Work on business logic flaws and end-to-end e-commerce exploitation scenarios.
+5. **crAPI** → Dive into realistic microservices and token-based authz/authn issues, practice chaining vulnerabilities across services.
+6. **Vulhub** → Learn how to identify software versions, research CVEs, and reproduce real-world exploits for deeper pentest training.
 
 ---
 
 ## 🏁 Project Roadmap
 
-- [ ] Add Traefik reverse proxy with lab hostnames (e.g., `dvwa.labs.local`)  
-- [ ] Add HTTPS support with self-signed certs  
-- [ ] Burp/ZAP scope presets  
-- [ ] Optional Docker Desktop/Podman support  
-- [ ] Prebuilt datasets for advanced practice  
+### Realism & Robustness Enhancements
 
----
+* [ ] Traefik reverse proxy with lab hostnames (e.g., `dvwa.labs.local`)
+* [ ] HTTPS with self-signed certs for encrypted traffic testing
+* [ ] Burp/ZAP/Nuclei scope presets and scan templates
+* [ ] Publish prebuilt Docker images to Docker Hub / GHCR
+* [ ] Healthcheck dashboard + `make status` target
+* [ ] Persistence & reset scripts for repeatable exploits
+* [ ] Seeded datasets (users, orders, transactions)
+* [ ] CI test matrix across Linux/macOS/Windows
+* [ ] Multi-arch builds (ARM64 + x86) for Apple Silicon/Raspberry Pi
+* [ ] Walkthroughs & guided practice scenarios
+* [ ] Automation demos (SQLi, XSS, fuzzing playbooks)
+* [ ] Telemetry toggle for optional request logging/metrics
 
+📎 Footer
+
+📎 Footer
+
+Curated with ❤️ and maintained with ![GitHub](https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png).
