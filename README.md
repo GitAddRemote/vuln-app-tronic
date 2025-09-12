@@ -222,4 +222,4 @@ MIT License © 2025 \[Your Name or Org]
 
 📎 Footer
 
-Curated with ❤️ and maintained with ![GitHub](https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png).
+Curated with ❤️ and maintained with :octocat:.
