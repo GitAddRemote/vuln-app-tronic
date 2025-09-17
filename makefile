@@ -55,7 +55,48 @@ api: bootstrap
 	@./scripts/hosts-banner.sh
 
 down:
-	docker compose down
+	# Stop/remove any lingering containers by label (idempotent)
+	docker ps -q --filter "label=com.docker.compose.project=vuln-tronic-labs" \
+	  | xargs -r docker rm -f ; \
+	# Then ask compose to clean networks/orphans for this project+files
+	docker compose \
+	  -p vuln-tronic-labs \
+	  --project-directory $(PWD) \
+	  -f docker-compose.yml \
+	  -f docker-compose.override.yml \
+	  down --remove-orphans
+
+down-hard:
+	# Full teardown (containers/images/volumes)
+	docker ps -q --filter "label=com.docker.compose.project=vuln-tronic-labs" \
+	  | xargs -r docker rm -f ; \
+	docker compose \
+	  -p vuln-tronic-labs \
+	  --project-directory $(PWD) \
+	  -f docker-compose.yml \
+	  -f docker-compose.override.yml \
+	  down --remove-orphans --volumes --rmi local
+
+diagnose-down:
+	@echo "=== Compose plugin/version ==="
+	@docker compose version || docker-compose version || true
+	@echo
+	@echo "=== Running containers for project 'vuln-tronic-labs' ==="
+	@docker ps --filter "label=com.docker.compose.project=vuln-tronic-labs" --format 'table {{.Names}}\t{{.Label "com.docker.compose.project"}}'
+	@echo
+	@echo "=== Resolved config (should be your two files) ==="
+	@COMPOSE_PROJECT_NAME=vuln-tronic-labs docker compose \
+	  -p vuln-tronic-labs \
+	  -f docker-compose.yml -f docker-compose.override.yml \
+	  config --quiet && echo "OK"
+
+status:
+	@docker ps --filter "label=com.docker.compose.project=vuln-tronic-labs" \
+	  --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+
+prune-nv:
+	docker network ls -q --filter "label=com.docker.compose.project=vuln-tronic-labs" | xargs -r docker network rm
+	docker volume  ls -q --filter "label=com.docker.compose.project=vuln-tronic-labs" | xargs -r docker volume rm
 
 ps:
 	docker compose ps
