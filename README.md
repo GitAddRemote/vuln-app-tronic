@@ -73,18 +73,18 @@ Then open any of the listed URLs in your browser.
 
 ## 🗂️ Ports & URLs (defaults from `.env.example`)
 
-| Lab        | Port | URL                                                                               | Profile    |
-| ---------- | ---- | --------------------------------------------------------------------------------- | ---------- |
-| DVWA       | 8080 | [http://localhost:8080](http://localhost:8080)                                    | web-basics |
-| bWAPP      | 8081 | [http://localhost:8081](http://localhost:8081)                                    | web-basics |
-| Mutillidae | 8082 | [http://localhost:8082](http://localhost:8082)                                    | web-basics |
-| Juice Shop | 3000 | [http://localhost:3000](http://localhost:3000)                                    | modern-api |
-| VAmPI      | 5000 | [http://localhost:5000](http://localhost:5000)                                    | modern-api |
-| **DVWS**   | 8888 | [http://localhost:8888](http://localhost:8888) (REST UI; GraphQL proxied via app) | api-only   |
-| DVGA       | 5010 | [http://localhost:5010/graphiql](http://localhost:5010/graphiql)                  | api-only   |
-| Hackazon   | 8083 | [http://localhost:8083](http://localhost:8083)                                    | extras     |
-| crAPI      | —    | runs in `labs/crapi` (see below)                                                  | submodule  |
-| Vulhub     | —    | runs per-CVE in `labs/vulhub`                                                     | submodule  |
+| Lab        | Port | URL                                                                                                                                                             | Profile    |
+| ---------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| DVWA       | 8080 | <a href="http://localhost:8080" target="_blank" rel="noopener noreferrer">[http://localhost:8080](http://localhost:8080)</a>                                    | web-basics |
+| bWAPP      | 8081 | <a href="http://localhost:8081" target="_blank" rel="noopener noreferrer">[http://localhost:8081](http://localhost:8081)</a>                                    | web-basics |
+| Mutillidae | 8082 | <a href="http://localhost:8082" target="_blank" rel="noopener noreferrer">[http://localhost:8082](http://localhost:8082)</a>                                    | web-basics |
+| Juice Shop | 3000 | <a href="http://localhost:3000" target="_blank" rel="noopener noreferrer">[http://localhost:3000](http://localhost:3000)</a>                                    | modern-api |
+| VAmPI      | 5000 | <a href="http://localhost:5000" target="_blank" rel="noopener noreferrer">[http://localhost:5000](http://localhost:5000)</a>                                    | modern-api |
+| **DVWS**   | 8888 | <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">[http://localhost:8888](http://localhost:8888)</a> (REST UI; GraphQL proxied via app) | api-only   |
+| DVGA       | 5010 | <a href="http://localhost:5010/graphiql" target="_blank" rel="noopener noreferrer">[http://localhost:5010/graphiql](http://localhost:5010/graphiql)</a>         | api-only   |
+| Hackazon   | 8083 | <a href="http://localhost:8083" target="_blank" rel="noopener noreferrer">[http://localhost:8083](http://localhost:8083)</a>                                    | extras     |
+| crAPI      | —    | runs in `labs/crapi` (see below)                                                                                                                                | submodule  |
+| Vulhub     | —    | runs per-CVE in `labs/vulhub`                                                                                                                                   | submodule  |
 
 > **DVWS internals (for testers):**
 > Inside the `dvws` container, two loopback proxies are started automatically:
@@ -260,15 +260,15 @@ MIT License © 2025 \[Your Name or Org]
 
 ## 🙌 Acknowledgments
 
-* OWASP crAPI — [https://github.com/OWASP/crAPI](https://github.com/OWASP/crAPI)
-* OWASP Juice Shop — [https://github.com/juice-shop/juice-shop](https://github.com/juice-shop/juice-shop)
-* OWASP DVWA — [http://www.dvwa.co.uk/](http://www.dvwa.co.uk/)
-* OWASP Mutillidae II — [https://github.com/webpwnized/mutillidae](https://github.com/webpwnized/mutillidae)
-* bWAPP — [http://itsecgames.com/](http://itsecgames.com/)
-* DVWS (dvws-node) — [https://github.com/snoopysecurity/dvws-node](https://github.com/snoopysecurity/dvws-node)
-* DVGA — [https://github.com/dolevf/Damn-Vulnerable-GraphQL-Application](https://github.com/dolevf/Damn-Vulnerable-GraphQL-Application)
-* Hackazon — [https://github.com/rapid7/hackazon](https://github.com/rapid7/hackazon)
-* Vulhub — [https://github.com/vulhub/vulhub](https://github.com/vulhub/vulhub)
+* OWASP crAPI — <a href="https://github.com/OWASP/crAPI" target="_blank" rel="noopener noreferrer">[https://github.com/OWASP/crAPI](https://github.com/OWASP/crAPI)</a>
+* OWASP Juice Shop — <a href="https://github.com/juice-shop/juice-shop" target="_blank" rel="noopener noreferrer">[https://github.com/juice-shop/juice-shop](https://github.com/juice-shop/juice-shop)</a>
+* OWASP DVWA — <a href="http://www.dvwa.co.uk/" target="_blank" rel="noopener noreferrer">[http://www.dvwa.co.uk/](http://www.dvwa.co.uk/)</a>
+* OWASP Mutillidae II — <a href="https://github.com/webpwnized/mutillidae" target="_blank" rel="noopener noreferrer">[https://github.com/webpwnized/mutillidae](https://github.com/webpwnized/mutillidae)</a>
+* bWAPP — <a href="http://itsecgames.com/" target="_blank" rel="noopener noreferrer">[http://itsecgames.com/](http://itsecgames.com/)</a>
+* DVWS (dvws-node) — <a href="https://github.com/snoopysecurity/dvws-node" target="_blank" rel="noopener noreferrer">[https://github.com/snoopysecurity/dvws-node](https://github.com/snoopysecurity/dvws-node)</a>
+* DVGA — <a href="https://github.com/dolevf/Damn-Vulnerable-GraphQL-Application" target="_blank" rel="noopener noreferrer">[https://github.com/dolevf/Damn-Vulnerable-GraphQL-Application](https://github.com/dolevf/Damn-Vulnerable-GraphQL-Application)</a>
+* Hackazon — <a href="https://github.com/rapid7/hackazon" target="_blank" rel="noopener noreferrer">[https://github.com/rapid7/hackazon](https://github.com/rapid7/hackazon)</a>
+* Vulhub — <a href="https://github.com/vulhub/vulhub" target="_blank" rel="noopener noreferrer">[https://github.com/vulhub/vulhub](https://github.com/vulhub/vulhub)</a>
 
 ---
 
