@@ -100,12 +100,62 @@ services:
       start_period: 10s
 
   # --- API-only extras ---
+  dvws-db:
+    image: mysql:5.7
+    container_name: dvws-db
+    profiles: ["api-only"]
+    networks: [labnet]
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysecretpassword     # self-contained: hard-coded for local lab
+      - MYSQL_DATABASE=dvws_sqldb               # created on first run if volume is empty
+      - MYSQL_ROOT_HOST=%                       # allow root from network
+    command: ["mysqld",
+      "--character-set-server=utf8mb4",
+      "--collation-server=utf8mb4_unicode_ci"
+    ]
+    volumes:
+      - dvws-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pmysecretpassword --silent || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
+    restart: unless-stopped
+
+  # One-shot, idempotent DB initializer (no host env; hard-coded creds)
+  dvws-db-init:
+    image: mysql:5.7
+    container_name: dvws-db-init
+    profiles: ["api-only"]
+    depends_on:
+      dvws-db:
+        condition: service_healthy
+    networks: [labnet]
+    volumes:
+      - ./docker/mysql/ensure-dvws.sql:/init/ensure.sql:ro
+    entrypoint:
+      - sh
+      - -lc
+      - >
+        mysql -hdvws-db -uroot -pmysecretpassword < /init/ensure.sql
+    restart: "no"
+
   dvws:
-    build: ./labs/dvws-node
+    # Uses dvws.Dockerfile with entrypoint that waits via nc and starts socat
+    build:
+      context: .
+      dockerfile: dvws.Dockerfile
+    image: vuln-tronic-labs-dvws
     container_name: dvws
     profiles: ["api-only"]
     networks: [labnet]
-    ports: ["127.0.0.1:${DVWS_PORT}:80"]
+    ports: ["127.0.0.1:${DVWS_PORT-8888}:80"]
+    depends_on:
+      dvws-db-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost/"]
@@ -126,11 +176,11 @@ services:
       - FLAG=flag{graph_ql_is_fun}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:5010/graphiql"]
+      test: ["CMD-SHELL", "curl -fsS -X POST http://localhost:5010/graphql -H 'content-type: application/json' -d '{\"query\":\"{__typename}\"}' >/dev/null"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 20
-      start_period: 10s
+      start_period: 15s
 
   # --- Optional legacy/ecommerce target ---
   hackazon:
@@ -146,4 +196,7 @@ services:
       timeout: 3s
       retries: 20
       start_period: 10s
+
+volumes:
+  dvws-mysql: {}
 

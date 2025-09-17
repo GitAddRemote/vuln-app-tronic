@@ -92,7 +92,7 @@ api-restart: down api
 # ----- Health & Smoke -----
 
 # default set (web-basics + modern-api)
-SERVICES ?= dvwa bwapp mutillidae juice-shop mongodb vampi
+SERVICES ?= dvwa bwapp mutillidae juice-shop mongodb vampi dvws
 
 wait:
 	@echo "== Waiting for services to be healthy =="
@@ -123,7 +123,7 @@ up-ready: up wait
 
 api-ready:
 	@$(MAKE) api
-	@$(MAKE) wait SERVICES="dvws dvga"
+	@$(MAKE) wait SERVICES="mongodb dvws dvga"
 	@./scripts/hosts-banner.sh
 
 # ----- crAPI helpers -----
