@@ -30,12 +30,40 @@ services:
     networks: [labnet]
     ports: ["127.0.0.1:${BWAPP_PORT}:80"]
     restart: unless-stopped
+    # Auto-install via mounted settings.php and DB init job
+    depends_on:
+      dvws-db:
+        condition: service_healthy
+      bwapp-db-init:
+        condition: service_completed_successfully
+    volumes:
+      # This file must exist in your repo; it overrides the installer-written config
+      - ./docker/bwapp/settings.php:/var/www/html/admin/settings.php:ro
     healthcheck:
+      # Either portal.php or login.php work; keeping your original path
       test: ["CMD", "curl", "-fsS", "http://localhost/portal.php"]
       interval: 10s
       timeout: 3s
       retries: 20
       start_period: 10s
+
+  # One-shot, idempotent DB initializer for bWAPP (non-destructive)
+  bwapp-db-init:
+    image: mysql:5.7
+    container_name: bwapp-db-init
+    profiles: ["web-basics"]
+    depends_on:
+      dvws-db:
+        condition: service_healthy
+    networks: [labnet]
+    volumes:
+      - ./docker/mysql/ensure-bwapp.sql:/init/ensure.sql:ro
+    entrypoint:
+      - sh
+      - -lc
+      - >
+        mysql -hdvws-db -uroot -pmysecretpassword < /init/ensure.sql
+    restart: "no"
 
   mutillidae:
     image: citizenstig/nowasp
@@ -103,7 +131,8 @@ services:
   dvws-db:
     image: mysql:5.7
     container_name: dvws-db
-    profiles: ["api-only"]
+    # Make MySQL available to both api-only and web-basics profiles
+    profiles: ["api-only", "web-basics"]
     networks: [labnet]
     environment:
       - MYSQL_ROOT_PASSWORD=mysecretpassword     # self-contained: hard-coded for local lab
@@ -114,6 +143,8 @@ services:
       "--collation-server=utf8mb4_unicode_ci"
     ]
     volumes:
+      # Keeps your existing init scripts convention
+      - ./docker/mysql:/docker-entrypoint-initdb.d
       - dvws-mysql:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pmysecretpassword --silent || exit 1"]
@@ -123,7 +154,7 @@ services:
       start_period: 90s
     restart: unless-stopped
 
-  # One-shot, idempotent DB initializer (no host env; hard-coded creds)
+  # One-shot, idempotent DB initializer for DVWS
   dvws-db-init:
     image: mysql:5.7
     container_name: dvws-db-init
@@ -150,7 +181,7 @@ services:
     container_name: dvws
     profiles: ["api-only"]
     networks: [labnet]
-    ports: ["127.0.0.1:${DVWS_PORT-8888}:80"]
+    ports: ["127.0.0.1:${DVWS_PORT:-8888}:80"]
     depends_on:
       dvws-db-init:
         condition: service_completed_successfully
