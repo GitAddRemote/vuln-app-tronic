@@ -7,18 +7,18 @@ Built as a personal hacking playground for **bug bounty hunters, penetration tes
 
 ## ✨ Features
 
-* 🚀 **One command up** — spin multiple labs side-by-side with `make up`
+* 🚀 **One command up** — spin multiple labs side‑by‑side with `make up`
 * 🐞 **Classics**: DVWA, bWAPP, Mutillidae
-* 🕸️ **Modern apps & APIs**: Juice Shop, VAmPI, DVWS, DVGA (GraphQL)
-* 🛍️ **Extras**: Hackazon (legacy e-commerce)
+* 🕸️ **Modern apps & APIs**: Juice Shop, VAmPI, DVWS, **DVGA (GraphQL, fixed bind/port)**
+* 🛍️ **Extras**: Hackazon (legacy e‑commerce)
 * 🔑 **Optional heavy labs**: OWASP crAPI + full Vulhub CVE catalog (submodules)
 * 📦 Organized with Docker Compose **profiles** for selective startup
 * 🛡️ Runs safely on `localhost` only (not exposed to the internet)
-* 🧰 **Self-contained DVWS**:
+* 🧰 **Self‑contained DBs where possible**
 
-  * No host env vars required
-  * Auto-creates MySQL DB/user on startup
-  * Internal loopback proxies so the app can talk to `localhost:3306` (MySQL) and `localhost:27017` (Mongo) inside the container
+  * **bWAPP auto‑install**: DB/user created by one‑shot init; config mounted so no web installer
+  * **DVWS self‑contained**: no host env needed; DB/user created; localhost DB proxies inside the app container
+  * **DVGA reachable by default**: binds to `0.0.0.0` with correct internal port (5013)
 
 ---
 
@@ -49,7 +49,7 @@ Mutillidae → http://localhost:8082
 Juice Shop → http://localhost:3000
 VAmPI      → http://localhost:5000
 DVWS       → http://localhost:8888
-DVGA       → http://localhost:5010/graphiql
+DVGA       → http://localhost:5013/graphiql
 Hackazon   → http://localhost:8083
 ------------------------------------------
 Heavy labs (manual start):
@@ -60,7 +60,7 @@ Heavy labs (manual start):
 
 Then open any of the listed URLs in your browser.
 
-> **Tip (API-only focus):**
+> **Tip (API‑only focus):**
 > Start just the API labs (DVWS, DVGA, Mongo, etc):
 >
 > ```bash
@@ -81,17 +81,12 @@ Then open any of the listed URLs in your browser.
 | Juice Shop | 3000 | <a href="http://localhost:3000" target="_blank" rel="noopener noreferrer">[http://localhost:3000](http://localhost:3000)</a>                                    | modern-api |
 | VAmPI      | 5000 | <a href="http://localhost:5000" target="_blank" rel="noopener noreferrer">[http://localhost:5000](http://localhost:5000)</a>                                    | modern-api |
 | **DVWS**   | 8888 | <a href="http://localhost:8888" target="_blank" rel="noopener noreferrer">[http://localhost:8888](http://localhost:8888)</a> (REST UI; GraphQL proxied via app) | api-only   |
-| DVGA       | 5010 | <a href="http://localhost:5010/graphiql" target="_blank" rel="noopener noreferrer">[http://localhost:5010/graphiql](http://localhost:5010/graphiql)</a>         | api-only   |
+| **DVGA**   | 5013 | <a href="http://localhost:5013/graphiql" target="_blank" rel="noopener noreferrer">[http://localhost:5013/graphiql](http://localhost:5013/graphiql)</a>         | api-only   |
 | Hackazon   | 8083 | <a href="http://localhost:8083" target="_blank" rel="noopener noreferrer">[http://localhost:8083](http://localhost:8083)</a>                                    | extras     |
 | crAPI      | —    | runs in `labs/crapi` (see below)                                                                                                                                | submodule  |
-| Vulhub     | —    | runs per-CVE in `labs/vulhub`                                                                                                                                   | submodule  |
+| Vulhub     | —    | runs per‑CVE in `labs/vulhub`                                                                                                                                   | submodule  |
 
-> **DVWS internals (for testers):**
-> Inside the `dvws` container, two loopback proxies are started automatically:
->
-> * `127.0.0.1:3306` → `dvws-db:3306` (MySQL)
-> * `127.0.0.1:27017` → `mongodb:27017` (Mongo)
->   This matches apps that expect `localhost` DBs, and it removes host setup entirely.
+> **DVWS internals (for testers):** Inside the `dvws` container, two loopback proxies are started automatically: `127.0.0.1:3306 → dvws-db:3306` (MySQL) and `127.0.0.1:27017 → mongodb:27017` (Mongo). This matches apps that expect `localhost` DBs, removing host setup entirely.
 
 ---
 
@@ -117,8 +112,7 @@ make vulhub-down SCENARIO=tomcat/CVE-2017-12615
 make vulhub-list
 ```
 
-> **Tip:** You can also run specific profiles with Docker Compose directly, e.g.
-> `docker compose --profile api-only up -d --build dvws`
+> **Tip:** You can also run specific profiles with Docker Compose directly, e.g. `docker compose --profile api-only up -d --build dvws`
 
 ---
 
@@ -136,7 +130,7 @@ This repo includes:
 git submodule update --remote --merge
 ```
 
-### Adding DVWS submodule (if you ever re-init)
+### Adding DVWS submodule (if you ever re‑init)
 
 ```bash
 git submodule add --depth 1 https://github.com/snoopysecurity/dvws-node.git labs/dvws-node
@@ -147,11 +141,31 @@ git submodule update --init --recursive
 
 ---
 
+## 🔧 Implementation Notes (what’s pre‑wired)
+
+### bWAPP (auto‑install)
+
+* A one‑shot init job creates DB **`bWAPP`** and user **`bwapp_user` / `bwapp_pass`** against the shared MySQL (`dvws-db`).
+* The container mounts `admin/settings.php` with those credentials so the web installer is bypassed.
+* `depends_on` ensures DB health + init completion before bWAPP starts.
+
+### DVGA (GraphQL)
+
+* Runs with `WEB_HOST=0.0.0.0` and `WEB_PORT=5013` so it binds correctly and is reachable from host.
+* Healthcheck uses a tiny GraphQL introspection query; `start_period` extended for slow first boots.
+
+### DVWS (API lab)
+
+* MySQL credentials and DB are ensured by a one‑shot init job (`dvws-db-init`).
+* The app exposes local loopback proxies for DBs so services that assume `localhost` keep working.
+
+---
+
 ## 🛡️ Safety Notes
 
 * These apps are **intentionally vulnerable**.
-* They bind only to `127.0.0.1` by default.
-  Do **NOT** expose them on the internet or run on shared networks.
+* They bind only to `127.0.0.1` (host mapping) or `0.0.0.0` **inside** containers for proper port publishing.
+* Do **NOT** expose them on the internet or run on shared networks.
 * Prefer running on a lab machine or VM if you’ll be experimenting hard.
 
 ---
@@ -163,94 +177,60 @@ git submodule update --init --recursive
 3. In Burp → **Target → Scope**, add the URLs from the banner.
 4. Intercept requests and explore with **Repeater**, **Intruder** (Pro), **Comparer**.
 
-**High-leverage practice ideas:**
+**High‑leverage practice ideas:**
 
 * **DVWS**
 
   * Intercept `/api/register` and `/api/login` → test for SQLi/weak auth.
   * Try **IDOR** patterns on any `/api/*/{id}` resources.
-  * Hit GraphQL via the app’s proxy path (look for `/graphql` endpoints); try introspection, field suggestions, and common GraphQL abuses (deep queries, alias abuse).
-  * XML-RPC (logs show `XML-RPC server listening on 9090`) — look for endpoints proxied via the app and fuzz method names.
+  * Hit GraphQL via app proxy path (look for `/graphql` endpoints); try introspection, deep queries, alias abuse.
+  * XML‑RPC (logs mention an XML‑RPC server) — look for endpoints proxied via the app and fuzz method names.
 * **DVGA**
 
-  * Open `/graphiql` and learn GraphQL introspection, enum guessing, auth bypass.
+  * Open `/graphiql` and practice GraphQL introspection, enum discovery, auth bypass.
 * **Juice Shop**
 
-  * Great for modern client-side vulns (XSS, JWT, CSP bypasses).
+  * Great for modern client‑side vulns (XSS, JWT, CSP bypasses).
 * **VAmPI**
 
-  * Practice REST fuzzing, broken object level authorization, and auth flows.
+  * Practice REST fuzzing, BOLA, and auth flows.
 
 ---
 
-## ⚙️ Development
-
-### Requirements
+## ⚙️ Requirements
 
 * Docker Engine ≥ 20.x
 * Docker Compose (v2)
 * GNU Make
 * Git (with submodule support)
 
-### What the DVWS images do at runtime
-
-* `dvws-db` (MySQL 5.7) is brought up and health-checked.
-* A tiny one-shot `dvws-db-init` container runs SQL to **ensure**:
-
-  * Database: `dvws_sqldb`
-  * User: `dvws_user` / password `dvws_pass`
-  * Grants applied
-* The `dvws` container waits for MySQL **and** Mongo, then:
-
-  * Starts a local forwarder `127.0.0.1:3306` → `dvws-db:3306`
-  * Starts a local forwarder `127.0.0.1:27017` → `mongodb:27017`
-  * Launches the Node app (dvws-node)
-
-> All credentials here are **lab-only** defaults hard-coded in Compose; no host env exports required.
-
-### CI/CD
-
-A GitHub Actions workflow can validate Compose and basic project health (optional; not required to run locally).
-
 ---
 
 ## 🧯 Troubleshooting
 
-**`dvws` restarting with DB errors**
+**DVGA "connection reset" or 404**
 
-* Check logs: `docker logs dvws --tail 120`
-* Verify forwarders are up: inside the container
-  `docker exec dvws nc -vz 127.0.0.1 3306` and `docker exec dvws nc -vz 127.0.0.1 27017`
-  (Should both say “succeeded”.)
+* Ensure it maps **host `${DVGA_PORT}` → container `5013`** and has `WEB_HOST=0.0.0.0`.
+* Healthcheck may take a bit on first boot; wait for `healthy` before browsing.
 
-**`dvws-db-init` fails**
+**bWAPP shows installer**
 
-* You may have an old MySQL volume initialized with different creds. Reset just this stack:
+* Confirm `bwapp-db-init` ran and `settings.php` is mounted to `/var/www/html/admin/settings.php`.
 
-  ```bash
-  docker compose --profile api-only down -v
-  docker compose --profile api-only up -d --build dvws
-  ```
+**DVWS restarting with DB errors**
 
-**“DVWS not found / app.js missing” on a fresh clone**
-
-* Ensure the DVWS submodule exists:
-  `ls labs/dvws-node/package.json` should exist. If not:
-  `git submodule update --init --recursive`
-
-**Compose warns about “Build using Bake / buildx not installed”**
-
-* Harmless for local use; you can ignore it.
+* `docker compose logs -f dvws dvws-db dvws-db-init`
+* If needed, reset only the API stack volumes and re‑up.
 
 **Ports already in use**
 
-* Adjust ports in `.env` (e.g., change `DVWA_PORT=8080` → `8089`) and re-`make up`.
+* Adjust ports in `.env` (e.g., change `DVWA_PORT=8080` → `8089`) and re‑`make up`.
 
 ---
 
 ## 📜 License
 
-This repo contains **wrapper configs** around third-party vulnerable applications.
+This repo contains **wrapper configs** around third‑party vulnerable applications.
 Each lab has its own license (see submodules).
 
 For this repo’s configs/scripts:
@@ -276,21 +256,21 @@ MIT License © 2025 \[Your Name or Org]
 
 1. **DVWA / Mutillidae / bWAPP** → OWASP Top 10 basics (XSS, SQLi, CSRF, file upload).
 2. **Juice Shop** → Modern SPA + REST; learn to proxy/fuzz JSON APIs.
-3. **DVWS / DVGA** → API-specific attack surface: IDOR/BOLA, auth, GraphQL introspection and abuse.
-4. **Hackazon** → Business logic flaws and e-commerce flows.
-5. **crAPI** → Realistic microservices, token auth, multi-service chains.
+3. **DVWS / DVGA** → API‑specific attack surface: IDOR/BOLA, auth, GraphQL introspection and abuse.
+4. **Hackazon** → Business logic flaws and e‑commerce flows.
+5. **crAPI** → Realistic microservices, token auth, multi‑service chains.
 6. **Vulhub** → Identify software versions, map to CVEs, reproduce exploits safely.
 
 ---
 
-## 🏁 Project Roadmap (nice-to-haves)
+## 🏁 Project Roadmap (nice‑to‑haves)
 
 * [ ] Traefik reverse proxy with local hostnames (e.g., `dvws.labs.local`)
-* [ ] HTTPS with self-signed certs for TLS testing
+* [ ] HTTPS with self‑signed certs for TLS testing
 * [ ] Burp/ZAP/Nuclei scope presets and scan templates
 * [ ] Health dashboard + `make status`
 * [ ] Seed datasets for repeatable scenarios
-* [ ] Multi-arch images (ARM64 + x86)
+* [ ] Multi‑arch images (ARM64 + x86)
 * [ ] Guided walkthroughs & automation playbooks
 
 ---

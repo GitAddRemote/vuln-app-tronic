@@ -200,19 +200,23 @@ services:
     container_name: dvga
     profiles: ["api-only"]
     networks: [labnet]
-    ports: ["127.0.0.1:${DVGA_PORT}:5010"]
+    # Host port stays configurable, container port fixed to 5013
+    ports: ["127.0.0.1:${DVGA_PORT:-5013}:5013"]
     environment:
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=5013
       - JWT_SECRET=secret
       - HMAC_SECRET=secret
       - FLAG=flag{graph_ql_is_fun}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS -X POST http://localhost:5010/graphql -H 'content-type: application/json' -d '{\"query\":\"{__typename}\"}' >/dev/null"]
+      # simple introspection query on the correct port
+      test: ["CMD-SHELL", "curl -fsS -X POST http://localhost:5013/graphql -H 'content-type: application/json' -d '{\"query\":\"{__typename}\"}' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 20
-      start_period: 15s
-
+      start_period: 30s
+      
   # --- Optional legacy/ecommerce target ---
   hackazon:
     image: pierrickv/hackazon
